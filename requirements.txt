@@ -1,0 +1,4 @@
+python-telegram-bot
+pdfplumber
+pandas
+openpyxl
