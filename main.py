@@ -8,7 +8,6 @@ import pdfplumber
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Loggingni yoqamiz (xatoliklarni Render konsolida ko'rish uchun)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -240,7 +239,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Salom! PDF faylingizni yuboring, uni Excelga o'tkazib beraman.")
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message or update.channel_post
+    message = update.message or update.channel_post or update.edited_message
     if not message:
         return
 
@@ -287,7 +286,7 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     
-    # Har qanday turdagi hujjatli xabarlarni ushlash
-    app.add_handler(MessageHandler(filters.ATTACHMENT, handle_document))
+    # BARCHA xabarlardagi fayllarni ushlash (Oddiy + Forward qilinganlar uchun)
+    app.add_handler(MessageHandler(filters.ALL, handle_document))
     
     app.run_polling()
