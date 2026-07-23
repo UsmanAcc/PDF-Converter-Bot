@@ -99,6 +99,16 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
+        # Parking (YANGI QO'SHILGAN QOIDA)
+        elif 'PARKING' in line_str.upper():
+            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
+            if amt_match:
+                val = float(amt_match.group(1))
+                key = f"parking_{val}_{i}"
+                if key not in seen_deductions:
+                    seen_deductions.add(key)
+                    data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | PARKING @ (${val:.2f})', 'AMOUNT': -abs(val)})
+
         # Trailer Rental
         elif 'TRAILER RENTAL' in line_str.upper() or 'TRAILERRENTAL' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
@@ -129,7 +139,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'No Violation Reward', 'DESCRIPTION': f'Reimbursement | BONUS @ ${val:.2f}', 'AMOUNT': abs(val)})
 
-        # Reimbursements: Discount (O'ZGARTIRILGAN QOIDA: Fuel Discount)
+        # Reimbursements: Discount
         elif 'DISCOUNT' in line_str.upper():
             amt_match = re.search(r'\$([\d,]+\.\d{2})\s*$', line_str) or (re.search(r'\$([\d,]+\.\d{2})\s*$', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
