@@ -49,7 +49,7 @@ def process_ditat_pdf(pdf_path):
             if ref_match:
                 current_load_ref = ref_match.group(1)
 
-            # DriverAssist / Driver Assist
+            # DriverAssist / Driver Assist (O'ZGARTIRILGAN CATEGORY)
             driver_assist_match = re.search(
                 r'^(DriverAssist|Driver\s+Assist)\s+(.*?)\s+(-?[\d\.]+)\s+\$([\d,]+\.\d{2})\s+\(?\$?\(?([\d,]+\.\d{2})\)?', 
                 line_str, 
@@ -68,7 +68,7 @@ def process_ditat_pdf(pdf_path):
                 description_text = f"{ref_text} | {pay_type} ({desc}) @ (${abs(pay_val):.2f})"
 
                 data.append({
-                    'CATEGORY': 'Driver payment',
+                    'CATEGORY': 'Fleet Operating Expenses:Driver Payment',
                     'DESCRIPTION': description_text,
                     'AMOUNT': pay_val
                 })
@@ -230,7 +230,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # FEE / FUEL (Header hamda Admin Fee xatolaridan tozalangan regex)
+        # FEE / FUEL
         elif ('FEE' in line_str.upper() or 'FUEL' in line_str.upper()) and not ('ADMIN' in line_str.upper()):
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
