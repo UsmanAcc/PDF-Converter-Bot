@@ -1,11 +1,18 @@
 import os
 import re
 import threading
+import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import pandas as pd
 import pdfplumber
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+
+# Loggingni yoqamiz (xatoliklarni Render konsolida ko'rish uchun)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 PORT = int(os.environ.get("PORT", 8080))
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -233,15 +240,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Salom! PDF faylingizni yuboring, uni Excelga o'tkazib beraman.")
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    doc = update.message.document
-    if not doc or not doc.file_name.lower().endswith('.pdf'):
-        await update.message.reply_text("Iltimos, faqat PDF formatidagi fayl yuboring!")
+    message = update.message or update.channel_post
+    if not message:
         return
 
-    await update.message.reply_text("Fayl qabul qilindi, ishlanmoqda...")
+    doc = message.document
+    if not doc:
+        return
+
+    file_name = doc.file_name or "document.pdf"
+    if not file_name.lower().endswith('.pdf'):
+        await message.reply_text("Iltimos, faqat PDF formatidagi fayl yuboring!")
+        return
+
+    await message.reply_text("Fayl qabul qilindi, ishlanmoqda...")
     
     pdf_file = await context.bot.get_file(doc.file_id)
-    pdf_path = f"temp_{doc.file_name}"
+    pdf_path = f"temp_{doc.file_id}.pdf"
     await pdf_file.download_to_drive(pdf_path)
     
     excel_path = pdf_path.replace('.pdf', '.xlsx')
@@ -253,10 +268,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             df.to_excel(writer, sheet_name='File', index=False)
 
         with open(excel_path, 'rb') as f:
-            await update.message.reply_document(document=f, filename=f"Excel_{doc.file_name.replace('.pdf', '.xlsx')}")
+            await message.reply_document(document=f, filename=f"Excel_{file_name.replace('.pdf', '.xlsx')}")
 
     except Exception as e:
-        await update.message.reply_text(f"Xatolik yuz berdi: {str(e)}")
+        logging.error(f"Xatolik: {e}", exc_info=True)
+        await message.reply_text(f"Xatolik yuz berdi: {str(e)}")
     finally:
         if os.path.exists(pdf_path): 
             os.remove(pdf_path)
@@ -271,7 +287,7 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     
-    # Standard va to'g'ri handler
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    # Har qanday turdagi hujjatli xabarlarni ushlash
+    app.add_handler(MessageHandler(filters.ATTACHMENT, handle_document))
     
     app.run_polling()
