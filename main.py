@@ -45,12 +45,11 @@ def process_ditat_pdf(pdf_path):
             in_earnings_section = False
 
         if in_earnings_section:
-            # Load Ref Numberni aniqlash
             ref_match = re.search(r'\b(\d{5,10}|LD\d{5}|S\d{6,8})\b', line_str, re.IGNORECASE)
             if ref_match:
                 current_load_ref = ref_match.group(1)
 
-            # DriverAssist / Driver Assist uchun qoida
+            # DriverAssist / Driver Assist
             driver_assist_match = re.search(
                 r'^(DriverAssist|Driver\s+Assist)\s+(.*?)\s+(-?[\d\.]+)\s+\$([\d,]+\.\d{2})\s+\(?\$?\(?([\d,]+\.\d{2})\)?', 
                 line_str, 
@@ -62,7 +61,6 @@ def process_ditat_pdf(pdf_path):
                 pay_str = driver_assist_match.group(5).replace(',', '')
                 pay_val = float(pay_str)
                 
-                # Agar qatorda qavs ( ) bo'lsa yoki manfiy ko'rsatilgan bo'lsa, manfiy qiymat qilamiz
                 if '(' in line_str or '-' in line_str:
                     pay_val = -abs(pay_val)
 
@@ -76,7 +74,7 @@ def process_ditat_pdf(pdf_path):
                 })
                 continue
 
-            # Boshqa to'lov turlari (FLAT, DETENTION, LAYOVER, MGAP, va b.)
+            # Boshqa to'lov turlari
             pay_match = re.search(
                 r'^(FLAT|DETENTION|LAYOVER|MGAP|EMPTY\s*MILES|LOADED\s*MILES|MILEAGE|TONU|EXTRA\s+STOP|LUMPER)\s+(.*?)\s+([\d\.]+)\s+\$([\d,]+\.\d{2})\s+\$([\d,]+\.\d{2})', 
                 line_str, 
@@ -109,29 +107,29 @@ def process_ditat_pdf(pdf_path):
         
         # Admin Fee
         if 'Admin Fee' in line_str:
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
-                key = f"admin_{val}"
+                val = float(amt_match.group(1).replace(',', ''))
+                key = f"admin_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Admin Fee', 'DESCRIPTION': f'Deduction | ADMINISTRATION FEE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
         # IFTA
         elif 'IFTA' in line_str:
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
-                key = f"ifta_{val}"
+                val = float(amt_match.group(1).replace(',', ''))
+                key = f"ifta_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
         # Parking
         elif 'PARKING' in line_str.upper():
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"parking_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
@@ -139,9 +137,9 @@ def process_ditat_pdf(pdf_path):
 
         # Trailer Rental
         elif 'TRAILER RENTAL' in line_str.upper() or 'TRAILERRENTAL' in line_str.upper():
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"tr_rental_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
@@ -149,9 +147,9 @@ def process_ditat_pdf(pdf_path):
 
         # Security Deposit
         elif 'SECURITY DEPOSIT' in line_str.upper():
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"sec_dep_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
@@ -179,29 +177,29 @@ def process_ditat_pdf(pdf_path):
 
         # Cargo Insurance
         elif 'Cargo Insurance' in line_str:
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
-                key = f"cargo_{val}"
+                val = float(amt_match.group(1).replace(',', ''))
+                key = f"cargo_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Insurance refund', 'DESCRIPTION': f'Deduction | CARGO INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
         # EFS
         elif 'EFS #' in line_str:
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
-                key = f"efs_{val}"
+                val = float(amt_match.group(1).replace(',', ''))
+                key = f"efs_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | MONEY CODE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
         # Short pay / Other
         elif 'SHORT PAY' in line_str.upper() or 'OTHER' in line_str.upper():
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"other_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
@@ -210,9 +208,9 @@ def process_ditat_pdf(pdf_path):
 
         # Tolls
         elif 'Toll' in line_str or 'Tolls' in line_str:
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"toll_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
@@ -220,25 +218,25 @@ def process_ditat_pdf(pdf_path):
 
         # OAI
         elif 'OAI' in line_str or 'Occupational accident' in line_str:
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
-                key = f"oai_{val}"
+                val = float(amt_match.group(1).replace(',', ''))
+                key = f"oai_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # FEE / FUEL
-        elif 'FEE' in line_str or 'FUEL' in line_str or 'Fuel additives' in line_str or 'Carrier fee' in line_str:
-            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+        # FEE / FUEL (TUGIRILGAN REGEX - Vergullik va har bir qator summasini to'g'ri oladi)
+        elif 'FEE' in line_str.upper() or 'FUEL' in line_str.upper() or 'FUEL ADDITIVES' in line_str.upper() or 'CARRIER FEE' in line_str.upper():
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"fuel_adv_{val}_{i}"
                 if key not in seen_deductions and val > 0:
                     seen_deductions.add(key)
-                    loc_match = re.search(r'([A-Za-z\s,#0-9]+?)(?:FUEL|FEE)', line_str)
-                    loc = loc_match.group(1).strip() if loc_match else "Fuel Station"
-                    data.append({'CATEGORY': 'Prepaid Fuel', 'DESCRIPTION': f'Fuel | {loc} @ (${val:.2f})', 'AMOUNT': -abs(val)})
+                    loc_match = re.search(r'([A-Za-z0-9\s,#\.-]+?)(?:FUEL|FEE)', line_str, re.IGNORECASE)
+                    loc = loc_match.group(1).strip() if loc_match and len(loc_match.group(1).strip()) > 0 else "FUEL"
+                    data.append({'CATEGORY': 'Prepaid Fuel', 'DESCRIPTION': f'Fuel | {loc} @ (${val:,.2f})', 'AMOUNT': -abs(val)})
 
     return pd.DataFrame(data)
 
