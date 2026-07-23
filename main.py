@@ -47,12 +47,10 @@ def process_ditat_pdf(pdf_path):
             in_earnings_section = False
 
         if in_earnings_section:
-            # Load Ref Numberni aniqlash
             ref_match = re.search(r'\b(4\d{9}|4\d{5}|LD\d{5})\b', line_str)
             if ref_match:
                 current_load_ref = ref_match.group(1)
 
-            # Barcha to'lov turlari (FLAT, DETENTION, LAYOVER, EMPTY MILES, LOADED MILES, TONU va h.k.)
             pay_match = re.search(
                 r'^(FLAT|DETENTION|LAYOVER|EMPTY\s*MILES|LOADED\s*MILES|MILEAGE|TONU|EXTRA\s+STOP|LUMPER)\s+(.*?)\s+([\d\.]+)\s+\$([\d,]+\.\d{2})\s+\$([\d,]+\.\d{2})', 
                 line_str, 
@@ -103,6 +101,16 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
+        # Trailer Rental
+        elif 'TRAILER RENTAL' in line_str.upper() or 'TRAILERRENTAL' in line_str.upper():
+            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            if amt_match:
+                val = float(amt_match.group(1))
+                key = f"tr_rental_{val}_{i}"
+                if key not in seen_deductions:
+                    seen_deductions.add(key)
+                    data.append({'CATEGORY': 'Trailer Rental Revenue', 'DESCRIPTION': f'Deduction | TRAILER RENTAL @ (${val:.2f})', 'AMOUNT': -abs(val)})
+
         # Security Deposit
         elif 'SECURITY DEPOSIT' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
@@ -122,6 +130,16 @@ def process_ditat_pdf(pdf_path):
                 if key not in seen_deductions and val > 0:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'No Violation Reward', 'DESCRIPTION': f'Reimbursement | BONUS @ ${val:.2f}', 'AMOUNT': abs(val)})
+
+        # Reimbursements: Discount (YANGI QO'SHILGAN QOIDA)
+        elif 'DISCOUNT' in line_str.upper():
+            amt_match = re.search(r'\$?([\d\.]+)', line_str) or (re.search(r'\$?([\d\.]+)', lines[i+1]) if i+1 < len(lines) else None)
+            if amt_match:
+                val = float(amt_match.group(1))
+                key = f"discount_{val}_{i}"
+                if key not in seen_deductions and val > 0:
+                    seen_deductions.add(key)
+                    data.append({'CATEGORY': 'Prepaid Fuel', 'DESCRIPTION': f'Reimbursement | DISCOUNT @ ${val:.2f}', 'AMOUNT': abs(val)})
 
         # Cargo Insurance
         elif 'Cargo Insurance' in line_str:
@@ -175,7 +193,7 @@ def process_ditat_pdf(pdf_path):
                     data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
         # Deduction Type/Advances: FEE / FUEL / Additives / Carrier / Discount
-        elif 'FEE' in line_str or 'FUEL' in line_str or 'Fuel additives' in line_str or 'Carrier fee' in line_str or 'Discount' in line_str:
+        elif 'FEE' in line_str or 'FUEL' in line_str or 'Fuel additives' in line_str or 'Carrier fee' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
                 val = float(amt_match.group(1))
