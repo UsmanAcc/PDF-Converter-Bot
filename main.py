@@ -271,7 +271,7 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     
-    # Forward qilingan hamda oddiy PDF hujjatlarni ushlash uchun yangilangan handler
-    app.add_handler(MessageHandler(filters.Document.MIME_TYPE("application/pdf") | filters.Document.FileExtension("pdf"), handle_document))
+    # Standard va to'g'ri handler
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     
     app.run_polling()
