@@ -31,7 +31,7 @@ def process_ditat_pdf(pdf_path):
 
     lines = full_text.split('\n')
     
-    # 1. EARNINGS (FLAT, DETENTION, LAYOVER, MGAP, EMPTY MILES, va b.)
+    # 1. EARNINGS (FLAT, DETENTION, LAYOVER, MGAP, DriverAssist va b.)
     current_load_ref = ""
     in_earnings_section = False
 
@@ -45,10 +45,38 @@ def process_ditat_pdf(pdf_path):
             in_earnings_section = False
 
         if in_earnings_section:
-            ref_match = re.search(r'\b(4\d{9}|4\d{5}|LD\d{5}|S\d{6,8})\b', line_str, re.IGNORECASE)
+            # Load Ref Numberni aniqlash
+            ref_match = re.search(r'\b(\d{5,10}|LD\d{5}|S\d{6,8})\b', line_str, re.IGNORECASE)
             if ref_match:
                 current_load_ref = ref_match.group(1)
 
+            # DriverAssist / Driver Assist uchun qoida
+            driver_assist_match = re.search(
+                r'^(DriverAssist|Driver\s+Assist)\s+(.*?)\s+(-?[\d\.]+)\s+\$([\d,]+\.\d{2})\s+\(?\$?\(?([\d,]+\.\d{2})\)?', 
+                line_str, 
+                re.IGNORECASE
+            )
+            if driver_assist_match:
+                pay_type = driver_assist_match.group(1)
+                desc = driver_assist_match.group(2).strip()
+                pay_str = driver_assist_match.group(5).replace(',', '')
+                pay_val = float(pay_str)
+                
+                # Agar qatorda qavs ( ) bo'lsa yoki manfiy ko'rsatilgan bo'lsa, manfiy qiymat qilamiz
+                if '(' in line_str or '-' in line_str:
+                    pay_val = -abs(pay_val)
+
+                ref_text = f"Load#: {current_load_ref}" if current_load_ref else "Load"
+                description_text = f"{ref_text} | {pay_type} ({desc}) @ (${abs(pay_val):.2f})"
+
+                data.append({
+                    'CATEGORY': 'Driver payment',
+                    'DESCRIPTION': description_text,
+                    'AMOUNT': pay_val
+                })
+                continue
+
+            # Boshqa to'lov turlari (FLAT, DETENTION, LAYOVER, MGAP, va b.)
             pay_match = re.search(
                 r'^(FLAT|DETENTION|LAYOVER|MGAP|EMPTY\s*MILES|LOADED\s*MILES|MILEAGE|TONU|EXTRA\s+STOP|LUMPER)\s+(.*?)\s+([\d\.]+)\s+\$([\d,]+\.\d{2})\s+\$([\d,]+\.\d{2})', 
                 line_str, 
@@ -99,7 +127,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Parking (YANGI QO'SHILGAN QOIDA)
+        # Parking
         elif 'PARKING' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
             if amt_match:
