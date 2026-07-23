@@ -7,11 +7,9 @@ import pdfplumber
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Render taqdim etadigan port (aks holda 8080)
 PORT = int(os.environ.get("PORT", 8080))
 TOKEN = os.environ.get("BOT_TOKEN")
 
-# Render port scan xatosini oldini olish uchun HTTP Server
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -19,7 +17,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Bot ishlayapti!")
 
     def log_message(self, format, *args):
-        return  # Konsolni ortiqcha loglar bilan to'ldirmaslik uchun
+        return
 
 def run_http_server():
     server = HTTPServer(('0.0.0.0', PORT), SimpleHTTPRequestHandler)
@@ -33,7 +31,7 @@ def process_ditat_pdf(pdf_path):
 
     lines = full_text.split('\n')
     
-    # 1. EARNINGS (FLAT, DETENTION, LAYOVER, EMPTY MILES, LOADED MILES, va b.)
+    # 1. EARNINGS
     current_load_ref = ""
     in_earnings_section = False
 
@@ -121,23 +119,23 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Security Deposit Refundable', 'DESCRIPTION': f'Deduction | SECURITY DEPOSIT @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Reimbursements: Bonus
+        # Reimbursements: Bonus (Oxirgi dollar summani olish)
         elif 'BONUS' in line_str.upper():
-            amt_match = re.search(r'\$?([\d\.]+)', line_str) or (re.search(r'\$?([\d\.]+)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\$([\d,]+\.\d{2})\s*$', line_str) or (re.search(r'\$([\d,]+\.\d{2})\s*$', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"bonus_{val}_{i}"
-                if key not in seen_deductions and val > 0:
+                if key not in seen_deductions:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'No Violation Reward', 'DESCRIPTION': f'Reimbursement | BONUS @ ${val:.2f}', 'AMOUNT': abs(val)})
 
-        # Reimbursements: Discount (YANGI QO'SHILGAN QOIDA)
+        # Reimbursements: Discount (Oxirgi dollar summani olish: $75.73, $34.58 va h.k.)
         elif 'DISCOUNT' in line_str.upper():
-            amt_match = re.search(r'\$?([\d\.]+)', line_str) or (re.search(r'\$?([\d\.]+)', lines[i+1]) if i+1 < len(lines) else None)
+            amt_match = re.search(r'\$([\d,]+\.\d{2})\s*$', line_str) or (re.search(r'\$([\d,]+\.\d{2})\s*$', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
-                val = float(amt_match.group(1))
+                val = float(amt_match.group(1).replace(',', ''))
                 key = f"discount_{val}_{i}"
-                if key not in seen_deductions and val > 0:
+                if key not in seen_deductions:
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Prepaid Fuel', 'DESCRIPTION': f'Reimbursement | DISCOUNT @ ${val:.2f}', 'AMOUNT': abs(val)})
 
@@ -161,7 +159,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | MONEY CODE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Short pay / Other (Deductions)
+        # Short pay / Other
         elif 'SHORT PAY' in line_str.upper() or 'OTHER' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
             if amt_match:
@@ -182,7 +180,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | TOLLS @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Deduction Type: OAI
+        # OAI
         elif 'OAI' in line_str or 'Occupational accident' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -192,7 +190,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Deduction Type/Advances: FEE / FUEL / Additives / Carrier / Discount
+        # FEE / FUEL
         elif 'FEE' in line_str or 'FUEL' in line_str or 'Fuel additives' in line_str or 'Carrier fee' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
