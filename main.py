@@ -45,12 +45,10 @@ def process_ditat_pdf(pdf_path):
             in_earnings_section = False
 
         if in_earnings_section:
-            # Load Ref Numberni aniqlash (4..., LD..., S... formatlar uchun)
             ref_match = re.search(r'\b(4\d{9}|4\d{5}|LD\d{5}|S\d{6,8})\b', line_str, re.IGNORECASE)
             if ref_match:
                 current_load_ref = ref_match.group(1)
 
-            # MGAP va boshqa to'lov turlari uchun regex
             pay_match = re.search(
                 r'^(FLAT|DETENTION|LAYOVER|MGAP|EMPTY\s*MILES|LOADED\s*MILES|MILEAGE|TONU|EXTRA\s+STOP|LUMPER)\s+(.*?)\s+([\d\.]+)\s+\$([\d,]+\.\d{2})\s+\$([\d,]+\.\d{2})', 
                 line_str, 
@@ -131,7 +129,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'No Violation Reward', 'DESCRIPTION': f'Reimbursement | BONUS @ ${val:.2f}', 'AMOUNT': abs(val)})
 
-        # Reimbursements: Discount
+        # Reimbursements: Discount (O'ZGARTIRILGAN QOIDA: Fuel Discount)
         elif 'DISCOUNT' in line_str.upper():
             amt_match = re.search(r'\$([\d,]+\.\d{2})\s*$', line_str) or (re.search(r'\$([\d,]+\.\d{2})\s*$', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -139,7 +137,7 @@ def process_ditat_pdf(pdf_path):
                 key = f"discount_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
-                    data.append({'CATEGORY': 'Prepaid Fuel', 'DESCRIPTION': f'Reimbursement | DISCOUNT @ ${val:.2f}', 'AMOUNT': abs(val)})
+                    data.append({'CATEGORY': 'Fuel Discount', 'DESCRIPTION': f'Reimbursement | DISCOUNT @ ${val:.2f}', 'AMOUNT': abs(val)})
 
         # Cargo Insurance
         elif 'Cargo Insurance' in line_str:
