@@ -105,6 +105,10 @@ def process_ditat_pdf(pdf_path):
     for i, line in enumerate(lines):
         line_str = line.strip()
         
+        # Sarlavhalarni e'tiborsiz qoldirish (Header Rows)
+        if 'Deduction Id' in line_str or 'Driver Id' in line_str or 'Deduction Type' in line_str:
+            continue
+
         # Admin Fee
         if 'Admin Fee' in line_str:
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
@@ -226,8 +230,8 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # FEE / FUEL (TUGIRILGAN REGEX - Vergullik va har bir qator summasini to'g'ri oladi)
-        elif 'FEE' in line_str.upper() or 'FUEL' in line_str.upper() or 'FUEL ADDITIVES' in line_str.upper() or 'CARRIER FEE' in line_str.upper():
+        # FEE / FUEL (Header hamda Admin Fee xatolaridan tozalangan regex)
+        elif ('FEE' in line_str.upper() or 'FUEL' in line_str.upper()) and not ('ADMIN' in line_str.upper()):
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
                 val = float(amt_match.group(1).replace(',', ''))
