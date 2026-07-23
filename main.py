@@ -31,26 +31,59 @@ def process_ditat_pdf(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         full_text = "\n".join([p.extract_text() for p in pdf.pages if p.extract_text()])
 
-    # 1. LOADLAR (Earnings)
-    load_matches = re.findall(
-        r'(4\d{5}|LD\d{5})[\s\S]*?Contracted flat amount[\s\S]*?([\d\.]+)[\s\S]*?\$([\d,]+\.\d{2})[\s\S]*?\$([\d,]+\.\d{2})',
-        full_text
-    )
-    for ref, rate, gross, pay in load_matches:
-        g_num = float(gross.replace(',', ''))
-        p_num = float(pay.replace(',', ''))
-        data.append({
-            'CATEGORY': 'Load Expanse',
-            'DESCRIPTION': f"Load#: {ref} Percentage: 88% of ${g_num:.2f} @ ${p_num:.2f}",
-            'AMOUNT': p_num
-        })
-
-    seen_deductions = set()
     lines = full_text.split('\n')
+    
+    # 1. EARNINGS (FLAT, DETENTION, LAYOVER, EMPTY MILES, LOADED MILES, va b.)
+    current_load_ref = ""
+    in_earnings_section = False
+
+    for i, line in enumerate(lines):
+        line_str = line.strip()
+
+        if 'Earnings' in line_str:
+            in_earnings_section = True
+            continue
+        if 'Deductions' in line_str or 'Reimbursements' in line_str or 'Advances' in line_str:
+            in_earnings_section = False
+
+        if in_earnings_section:
+            # Load Ref Numberni aniqlash
+            ref_match = re.search(r'\b(4\d{9}|4\d{5}|LD\d{5})\b', line_str)
+            if ref_match:
+                current_load_ref = ref_match.group(1)
+
+            # Barcha to'lov turlari (FLAT, DETENTION, LAYOVER, EMPTY MILES, LOADED MILES, TONU va h.k.)
+            pay_match = re.search(
+                r'^(FLAT|DETENTION|LAYOVER|EMPTY\s*MILES|LOADED\s*MILES|MILEAGE|TONU|EXTRA\s+STOP|LUMPER)\s+(.*?)\s+([\d\.]+)\s+\$([\d,]+\.\d{2})\s+\$([\d,]+\.\d{2})', 
+                line_str, 
+                re.IGNORECASE
+            )
+            
+            if pay_match:
+                pay_type = pay_match.group(1).upper()
+                desc = pay_match.group(2).strip()
+                rate_val = pay_match.group(4).replace(',', '')
+                pay_val = float(pay_match.group(5).replace(',', ''))
+
+                ref_text = f"Load#: {current_load_ref}" if current_load_ref else "Load"
+                
+                if pay_type == 'FLAT':
+                    description_text = f"{ref_text} Percentage: 88% of ${float(rate_val):.2f} @ ${pay_val:.2f}"
+                else:
+                    description_text = f"{ref_text} | {pay_type} ({desc}) @ ${pay_val:.2f}"
+
+                data.append({
+                    'CATEGORY': 'Load Expanse',
+                    'DESCRIPTION': description_text,
+                    'AMOUNT': pay_val
+                })
+
+    # 2. DEDUCTIONS, REIMBURSEMENTS, ADVANCES
+    seen_deductions = set()
     for i, line in enumerate(lines):
         line_str = line.strip()
         
-        # Checking Admin Fee
+        # Admin Fee
         if 'Admin Fee' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -60,7 +93,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Admin Fee', 'DESCRIPTION': f'Deduction | ADMINISTRATION FEE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking IFTA
+        # IFTA
         elif 'IFTA' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -70,7 +103,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking Security Deposit
+        # Security Deposit
         elif 'SECURITY DEPOSIT' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -80,7 +113,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Security Deposit Refundable', 'DESCRIPTION': f'Deduction | SECURITY DEPOSIT @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking Reimbursements: Bonus
+        # Reimbursements: Bonus
         elif 'BONUS' in line_str.upper():
             amt_match = re.search(r'\$?([\d\.]+)', line_str) or (re.search(r'\$?([\d\.]+)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -90,7 +123,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'No Violation Reward', 'DESCRIPTION': f'Reimbursement | BONUS @ ${val:.2f}', 'AMOUNT': abs(val)})
 
-        # Checking Cargo Insurance
+        # Cargo Insurance
         elif 'Cargo Insurance' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -100,7 +133,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Insurance refund', 'DESCRIPTION': f'Deduction | CARGO INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking EFS
+        # EFS
         elif 'EFS #' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
             if amt_match:
@@ -110,7 +143,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | MONEY CODE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking Short pay / Other (Deductions)
+        # Short pay / Other (Deductions)
         elif 'SHORT PAY' in line_str.upper() or 'OTHER' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
             if amt_match:
@@ -121,7 +154,7 @@ def process_ditat_pdf(pdf_path):
                     desc_label = 'SHORT PAY' if 'SHORT PAY' in line_str.upper() else 'OTHER'
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | {desc_label} @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking Tolls
+        # Tolls
         elif 'Toll' in line_str or 'Tolls' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -131,7 +164,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | TOLLS @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking Deduction Type: OAI
+        # Deduction Type: OAI
         elif 'OAI' in line_str or 'Occupational accident' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -141,7 +174,7 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking Deduction Type/Advances: FEE / FUEL / Additives / Carrier / Discount
+        # Deduction Type/Advances: FEE / FUEL / Additives / Carrier / Discount
         elif 'FEE' in line_str or 'FUEL' in line_str or 'Fuel additives' in line_str or 'Carrier fee' in line_str or 'Discount' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
