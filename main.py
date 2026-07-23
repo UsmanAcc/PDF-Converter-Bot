@@ -31,7 +31,7 @@ def process_ditat_pdf(pdf_path):
 
     lines = full_text.split('\n')
     
-    # 1. EARNINGS (FLAT, DETENTION, LAYOVER, MGAP, DriverAssist va b.)
+    # 1. EARNINGS
     current_load_ref = ""
     in_earnings_section = False
 
@@ -49,7 +49,7 @@ def process_ditat_pdf(pdf_path):
             if ref_match:
                 current_load_ref = ref_match.group(1)
 
-            # DriverAssist / Driver Assist (O'ZGARTIRILGAN CATEGORY)
+            # DriverAssist / Driver Assist
             driver_assist_match = re.search(
                 r'^(DriverAssist|Driver\s+Assist)\s+(.*?)\s+(-?[\d\.]+)\s+\$([\d,]+\.\d{2})\s+\(?\$?\(?([\d,]+\.\d{2})\)?', 
                 line_str, 
@@ -74,7 +74,6 @@ def process_ditat_pdf(pdf_path):
                 })
                 continue
 
-            # Boshqa to'lov turlari
             pay_match = re.search(
                 r'^(FLAT|DETENTION|LAYOVER|MGAP|EMPTY\s*MILES|LOADED\s*MILES|MILEAGE|TONU|EXTRA\s+STOP|LUMPER)\s+(.*?)\s+([\d\.]+)\s+\$([\d,]+\.\d{2})\s+\$([\d,]+\.\d{2})', 
                 line_str, 
@@ -105,11 +104,9 @@ def process_ditat_pdf(pdf_path):
     for i, line in enumerate(lines):
         line_str = line.strip()
         
-        # Sarlavhalarni e'tiborsiz qoldirish (Header Rows)
         if 'Deduction Id' in line_str or 'Driver Id' in line_str or 'Deduction Type' in line_str:
             continue
 
-        # Admin Fee
         if 'Admin Fee' in line_str:
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -119,7 +116,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Admin Fee', 'DESCRIPTION': f'Deduction | ADMINISTRATION FEE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # IFTA
         elif 'IFTA' in line_str:
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -129,7 +125,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Parking
         elif 'PARKING' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -139,7 +134,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | PARKING @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Trailer Rental
         elif 'TRAILER RENTAL' in line_str.upper() or 'TRAILERRENTAL' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -149,7 +143,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Trailer Rental Revenue', 'DESCRIPTION': f'Deduction | TRAILER RENTAL @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Security Deposit
         elif 'SECURITY DEPOSIT' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -159,7 +152,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Security Deposit Refundable', 'DESCRIPTION': f'Deduction | SECURITY DEPOSIT @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Reimbursements: Bonus
         elif 'BONUS' in line_str.upper():
             amt_match = re.search(r'\$([\d,]+\.\d{2})\s*$', line_str) or (re.search(r'\$([\d,]+\.\d{2})\s*$', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -169,7 +161,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'No Violation Reward', 'DESCRIPTION': f'Reimbursement | BONUS @ ${val:.2f}', 'AMOUNT': abs(val)})
 
-        # Reimbursements: Discount
         elif 'DISCOUNT' in line_str.upper():
             amt_match = re.search(r'\$([\d,]+\.\d{2})\s*$', line_str) or (re.search(r'\$([\d,]+\.\d{2})\s*$', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -179,7 +170,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Fuel Discount', 'DESCRIPTION': f'Reimbursement | DISCOUNT @ ${val:.2f}', 'AMOUNT': abs(val)})
 
-        # Cargo Insurance
         elif 'Cargo Insurance' in line_str:
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -189,7 +179,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Insurance refund', 'DESCRIPTION': f'Deduction | CARGO INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # EFS
         elif 'EFS #' in line_str:
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -199,7 +188,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | MONEY CODE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Short pay / Other
         elif 'SHORT PAY' in line_str.upper() or 'OTHER' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -210,7 +198,6 @@ def process_ditat_pdf(pdf_path):
                     desc_label = 'SHORT PAY' if 'SHORT PAY' in line_str.upper() else 'OTHER'
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | {desc_label} @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Tolls
         elif 'Toll' in line_str or 'Tolls' in line_str:
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -220,7 +207,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | TOLLS @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # OAI
         elif 'OAI' in line_str or 'Occupational accident' in line_str:
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -230,7 +216,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # FEE / FUEL
         elif ('FEE' in line_str.upper() or 'FUEL' in line_str.upper()) and not ('ADMIN' in line_str.upper()):
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
@@ -249,7 +234,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     doc = update.message.document
-    if not doc.file_name.lower().endswith('.pdf'):
+    if not doc or not doc.file_name.lower().endswith('.pdf'):
         await update.message.reply_text("Iltimos, faqat PDF formatidagi fayl yuboring!")
         return
 
@@ -285,5 +270,8 @@ if __name__ == '__main__':
     print("Bot va Port server ishga tushdi...")
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    
+    # Forward qilingan hamda oddiy PDF hujjatlarni ushlash uchun yangilangan handler
+    app.add_handler(MessageHandler(filters.Document.MIME_TYPE("application/pdf") | filters.Document.FileExtension("pdf"), handle_document))
+    
     app.run_polling()
