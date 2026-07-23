@@ -11,7 +11,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 PORT = int(os.environ.get("PORT", 8080))
 TOKEN = os.environ.get("BOT_TOKEN")
 
-# Render port scan xatosini oldini olish uchun soxta Web Server
+# Render port scan xatosini oldini olish uchun HTTP Server
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -70,6 +70,26 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
+        # Checking Security Deposit
+        elif 'SECURITY DEPOSIT' in line_str.upper():
+            amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
+            if amt_match:
+                val = float(amt_match.group(1))
+                key = f"sec_dep_{val}_{i}"
+                if key not in seen_deductions:
+                    seen_deductions.add(key)
+                    data.append({'CATEGORY': 'Security Deposit Refundable', 'DESCRIPTION': f'Deduction | SECURITY DEPOSIT @ (${val:.2f})', 'AMOUNT': -abs(val)})
+
+        # Checking Reimbursements: Bonus
+        elif 'BONUS' in line_str.upper():
+            amt_match = re.search(r'\$?([\d\.]+)', line_str) or (re.search(r'\$?([\d\.]+)', lines[i+1]) if i+1 < len(lines) else None)
+            if amt_match:
+                val = float(amt_match.group(1))
+                key = f"bonus_{val}_{i}"
+                if key not in seen_deductions and val > 0:
+                    seen_deductions.add(key)
+                    data.append({'CATEGORY': 'No Violation Reward', 'DESCRIPTION': f'Reimbursement | BONUS @ ${val:.2f}', 'AMOUNT': abs(val)})
+
         # Checking Cargo Insurance
         elif 'Cargo Insurance' in line_str:
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None)
@@ -90,15 +110,16 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | MONEY CODE @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Checking short pay
-        elif 'short pay' in line_str:
+        # Checking Short pay / Other (Deductions)
+        elif 'SHORT PAY' in line_str.upper() or 'OTHER' in line_str.upper():
             amt_match = re.search(r'\(\$?([\d\.]+)\)', line_str) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+1]) if i+1 < len(lines) else None) or (re.search(r'\(\$?([\d\.]+)\)', lines[i+2]) if i+2 < len(lines) else None)
             if amt_match:
                 val = float(amt_match.group(1))
-                key = f"short_{val}"
+                key = f"other_{val}_{i}"
                 if key not in seen_deductions:
                     seen_deductions.add(key)
-                    data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | OTHER @ (${val:.2f})', 'AMOUNT': -abs(val)})
+                    desc_label = 'SHORT PAY' if 'SHORT PAY' in line_str.upper() else 'OTHER'
+                    data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | {desc_label} @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
         # Checking Tolls
         elif 'Toll' in line_str or 'Tolls' in line_str:
@@ -169,7 +190,6 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove(excel_path)
 
 if __name__ == '__main__':
-    # Render portini ochish uchun HTTP serverni alohida thread'da yurgazamiz
     http_thread = threading.Thread(target=run_http_server, daemon=True)
     http_thread.start()
     
