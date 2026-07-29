@@ -133,8 +133,18 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Ifta', 'DESCRIPTION': f'Deduction | IFTA @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # Accident (YANGI QOIDA)
-        elif 'ACCIDENT' in line_str.upper():
+        # Occupational Accident Insurance (OAI) - Accident dan oldin tekshiriladi
+        elif 'OAI' in line_str or 'OCCUPATIONAL ACCIDENT' in line_str.upper() or 'OCCUPATIONAL' in line_str.upper():
+            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
+            if amt_match:
+                val = float(amt_match.group(1).replace(',', ''))
+                key = f"oai_{val}_{i}"
+                if key not in seen_deductions:
+                    seen_deductions.add(key)
+                    data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
+
+        # Oddiy ACCIDENT Deduction (Occupational bo'lmagani)
+        elif 'ACCIDENT' in line_str.upper() and not ('OCCUPATIONAL' in line_str.upper()):
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
             if amt_match:
                 val = float(amt_match.group(1).replace(',', ''))
@@ -234,16 +244,6 @@ def process_ditat_pdf(pdf_path):
                     seen_deductions.add(key)
                     data.append({'CATEGORY': 'Driver loan Clearing', 'DESCRIPTION': f'Deduction | TOLLS @ (${val:.2f})', 'AMOUNT': -abs(val)})
 
-        # OAI
-        elif 'OAI' in line_str or 'Occupational accident' in line_str:
-            amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
-            if amt_match:
-                val = float(amt_match.group(1).replace(',', ''))
-                key = f"oai_{val}_{i}"
-                if key not in seen_deductions:
-                    seen_deductions.add(key)
-                    data.append({'CATEGORY': 'Occupational Insurance Refund', 'DESCRIPTION': f'Deduction | OCCUPATIONAL ACCIDENT INSURANCE @ (${val:.2f})', 'AMOUNT': -abs(val)})
-
         # FEE / FUEL
         elif ('FEE' in line_str.upper() or 'FUEL' in line_str.upper()) and not ('ADMIN' in line_str.upper()):
             amt_match = re.search(r'\(\$?([\d,]+\.\d{2})\)', line_str) or (re.search(r'\(\$?([\d,]+\.\d{2})\)', lines[i+1]) if i+1 < len(lines) else None)
@@ -310,8 +310,5 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     
-    # Har qanday turdagi hujjatli xabarni ushlash
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-    
-    # Drop pending updates bilan xavfsiz va toza polling
     app.run_polling(drop_pending_updates=True)
